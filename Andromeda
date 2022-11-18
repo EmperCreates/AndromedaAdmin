@@ -1,0 +1,509 @@
+local Andromeda = getgenv and getgenv() or shared
+
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+
+Andromeda.Override = true
+
+if not Andromeda.Override then
+    if Andromeda.Loaded == true then
+        warn("Andromeda has already been loaded.")
+        return
+    else
+        Andromeda.Loaded = true
+    end
+end
+
+Andromeda.Prefix = ">"
+
+local Connections = {}
+local Commands = {}
+
+local ToString = tostring
+local ToNumber = tonumber
+
+local Remove = table.remove
+local Insert = table.insert
+local Find = table.find
+
+local Sub = string.sub
+local GSub = string.gsub
+local Split = string.split
+
+local Infinite = math.huge
+local Absolute = math.abs
+local Random = math.random
+local Floor = math.floor
+local Ceil = math.ceil
+
+local Vector3new = Vector3.new
+local Vector3zero = Vector3.zero
+
+local CFramenew = CFrame.new
+local CFrameAngles = CFrame.Angles
+
+local Wait = task.wait
+local Spawn = task.spawn
+local Delay = task.delay
+
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TeleportService = game:GetService("TeleportService")
+local Stats = game:GetService("Stats")
+
+local CurrentCamera = Workspace.CurrentCamera
+local CurrentCameraCFrame = CurrentCamera.CFrame
+
+local PostSimulation = RunService.PostSimulation
+local PreRender = RunService.PreRender
+local PreSimulation = RunService.PreSimulation
+
+local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+
+local PrimaryPart = Character.PrimaryPart or Character:FindFirstChild("HumanoidRootPart") or Character:WaitForChild("HumanoidRootPart")
+local Humanoid = Character:FindFirstChildOfClass("Humanoid") or Character:WaitForChild("Humanoid")
+
+Insert(Connections, Character:GetPropertyChangedSignal("PrimaryPart"):Connect(function(NewPrimaryPart)
+    PrimaryPart = NewPrimaryPart or Character:FindFirstChild("HumanoidRootPart") or Character:WaitForChild("HumanoidRootPart")
+end))
+
+Insert(Connections, LocalPlayer.CharacterAdded:Connect(function(NewCharacter)
+    Character = NewCharacter
+    Humanoid = Character:FindFirstChildOfClass("Humanoid") or Character:WaitForChild("Humanoid")
+end))
+
+local DefaultChatSystemChatEvents = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents") or ReplicatedStorage:WaitForChild("DefaultChatSystemChatEvents")
+
+local function AndromedaUsername(String)
+    for _,Player in pairs(Players:GetPlayers()) do
+        if Player.Name:lower():match(String) or Player.DisplayName:lower():match(String) then
+            return Player
+        end
+    end
+    
+    return nil
+end
+
+local function AndromedaCommands(Name, Function)
+    for _,Action in pairs(Name) do
+        Commands[Action] = Function 
+    end
+end
+
+local function Round(Number)
+    return Number < Absolute(Number) and Floor(Number) or Ceil(Number)
+end
+
+local function BitLimit(Number)
+    return 2 ^ 32 / 2
+end
+
+AndromedaCommands({"chat", "say"}, function(Arguments)
+    if not Arguments then
+        return
+    end
+    
+    local Message = Arguments
+    
+    local SayMessageRequest = DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest")
+    
+    if not SayMessageRequest or not SayMessageRequest:IsA("RemoteEvent") then
+        return
+    end
+    
+    Wait()
+    SayMessageRequest:FireServer(Message, "All")
+end)
+
+AndromedaCommands({"spam"}, function(Arguments)
+    if not Arguments then
+        return
+    end
+    
+    local Message = Arguments or Arguments[1]
+    
+    Andromeda.Spam = PostSimulation:Connect(function()
+        Commands.chat(Message)
+    end)
+end)
+
+AndromedaCommands({"unspam"}, function()
+    if not Andromeda.Spam then
+        return
+    end
+    
+    Andromeda.Spam:Disconnect()
+end)
+
+AndromedaCommands({"framespersecond", "fps"}, function()
+    local FPS = ToString(Round(1 / PreRender:Wait()))
+    Commands.chat(FPS)
+end)
+
+AndromedaCommands({"ping", "delay"}, function()
+    local DataPing = ToString(Round(Stats.Network.ServerStatsItem["Data Ping"]:GetValue()))
+    Commands.chat(DataPing)
+end)
+
+AndromedaCommands({"rejoin", "rj"}, function()
+    TeleportService:Teleport(game.PlaceId, LocalPlayer)
+end)
+
+AndromedaCommands({"prefix"}, function(Arguments)
+    if not Arguments then
+        return
+    end
+    
+    Andromeda.Prefix = Arguments[1] or Arguments
+end)
+
+AndromedaCommands({"rigtype"}, function(Arguments)
+    local Player = Arguments[1] and AndromedaUsername(Arguments[1]) or LocalPlayer
+    
+    if not Player then
+        return
+    end
+    
+    local PlayerCharacter = Player.Character or Player.CharacterAdded:Wait()
+    
+    local PlayerHumanoid = PlayerCharacter:FindFirstChildOfClass("Humanoid") or PlayerCharacter:WaitForChild("Humanoid")
+    
+    if not PlayerHumanoid then
+        return
+    end
+    
+    Commands.chat(ToString(PlayerHumanoid.RigType))
+end)
+
+AndromedaCommands({"mass"}, function(Arguments)
+    local Player = Arguments[1] and AndromedaUsername(Arguments[1]) or LocalPlayer
+    
+    if not Player then
+        return
+    end
+    
+    local PlayerCharacter = Player.Character or Player.CharacterAdded:Wait()
+    
+    local Mass = 0
+    
+    for _,BasePart in pairs(PlayerCharacter:GetDescendants()) do
+        if BasePart:IsA("BasePart") then
+            Mass = Mass + BasePart.Mass
+        end
+    end
+    
+    Commands.chat(ToString(Round(Mass)))
+end)
+
+AndromedaCommands({"respawn", "reset", "re"}, function()
+    Character:BreakJoints()
+    Humanoid.Health = 0
+end)
+
+AndromedaCommands({"teleportrespawn", "teleportreset", "teleportre", "trespawn", "treset", "tre"}, function()
+    local PrimaryPartCFrame = PrimaryPart.CFrame
+    Commands.respawn()
+    
+    LocalPlayer.CharacterAdded:Wait()
+    Wait()
+    
+    Character:SetPrimaryPartCFrame(PrimaryPartCFrame)
+end)
+
+AndromedaCommands({"instantrespawn", "instantreset", "instantre", "irespawn", "ireset", "ire"}, function()
+    local CurrentCameraCFrame = CurrentCamera.CFrame
+    
+    LocalPlayer.Character = nil
+    LocalPlayer.Character = Character
+    
+    Spawn(function()
+        PreRender:Wait()
+        CurrentCamera.CFrame = CurrentCameraCFrame
+    end)
+    
+    Wait(Players.RespawnTime - Wait() - PostSimulation:Wait() - PreRender:Wait() - PreSimulation:Wait())
+    Commands.teleportrespawn()
+end)
+
+AndromedaCommands({"totalplayertools", "playertools", "ptools"}, function(Arguments)
+    local Player = Arguments[1] and AndromedaUsername(Arguments[1]) or LocalPlayer
+    
+    if not Player then
+        return
+    end
+    
+    local Backpack = Player:FindFirstChildOfClass("Backpack")
+    
+    if not Backpack then
+        return
+    end
+    
+    local PlayerCharacter = Player.Character or Player.CharacterAdded:Wait()
+    
+    local Tools = 0
+    
+    for _,BackpackItem in pairs(Backpack:GetDescendants()) do
+        if BackpackItem:IsA("BackpackItem") then
+            Tools = Tools + 1
+        end
+    end
+    
+    for _,Tool in pairs(Character:GetDescendants()) do
+        if Tool:IsA("Tool") then
+            Tools = Tools + 1
+        end
+    end
+    
+    Commands.chat(ToString(Tools))
+    
+    return Tools
+end)
+
+AndromedaCommands({"totalgametools", "totaltools", "ttools"}, function()
+    local Tools = 0
+    
+    for _,Tool in pairs(game:GetDescendants()) do
+        if Tool:IsA("Tool") then
+            Tools = Tools + 1
+        end
+    end
+    
+    Commands.chat(ToString(Tools))
+    
+    return Tools
+end)
+
+AndromedaCommands({"droptools", "dtools"}, function()
+    local Backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+    
+    if not Backpack then
+        return
+    end
+    
+    for _,BackpackItem in pairs(Backpack:GetDescendants()) do
+        if BackpackItem:IsA("BackpackItem") then
+            BackpackItem.Parent = Character
+        end
+    end
+    
+    for _,Tool in pairs(Character:GetDescendants()) do
+        if Tool:IsA("Tool") then
+            Tool.Parent = Character
+            Tool.Parent = Workspace
+        end
+    end
+end)
+
+AndromedaCommands({"gettools", "gtools"}, function()
+    for _,Tool in pairs(Workspace:GetChildren()) do
+        if Tool:IsA("Tool") then
+            local Handle = Tool:FindFirstChild("Handle")
+            
+            if Handle and Handle:IsA("BasePart") then
+                firetouchinterest(PrimaryPart, Handle, 0)
+            end
+        end
+    end
+end)
+
+AndromedaCommands({"dupetools", "dupe"}, function(Arguments)
+    if not Arguments then
+        return
+    end
+    
+    for Loop = 1, Arguments[1] do
+        Commands.respawn()
+        
+        Commands.droptools()
+        
+        Wait()
+    end
+    
+    Commands.gettools()
+end)
+
+AndromedaCommands({"antifling"}, function()
+    Andromeda.AntiFling = PreSimulation:Connect(function()
+        for _,Player in pairs(Players:GetPlayers()) do
+            if Player ~= LocalPlayer then
+                if Player.Character then
+                    for _,BasePart in pairs(Player.Character:GetDescendants()) do
+                        if BasePart:IsA("BasePart") then
+                            BasePart.Massless = true
+                            BasePart.CanCollide = false
+                            
+                            BasePart.CanTouch = false
+                            BasePart.CanQuery = false
+                            
+                            BasePart.AssemblyAngularVelocity = Vector3zero
+                            BasePart.AssemblyLinearVelocity = Vector3zero
+                            
+                            BasePart.CustomPhysicalProperties = PhysicalProperties.new(0, 0, 0, 0, 0)
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end)
+
+AndromedaCommands({"unantifling"}, function()
+    if not Andromeda.AntiFling then
+        return
+    end
+    
+    Andromeda.AntiFling:Disconnect()
+end)
+
+AndromedaCommands({"fling"}, function(Arguments)
+    local Player = Arguments[1] and AndromedaUsername(Arguments[1])
+    
+    if not Player then
+        return
+    end
+    
+    local PrimaryPartCFrame = PrimaryPart.CFrame
+    
+    local PlayerCharacter = Player.Character or Player.CharacterAdded:Wait()
+    local PlayerPrimaryPart = PlayerCharacter.PrimaryPart
+    
+    if not PlayerPrimaryPart then
+        return
+    end
+
+    local Velocity = Vector3new(1, 1, 1) * 15000
+    
+    while PlayerPrimaryPart.AssemblyLinearVelocity.Magnitude < 50 do
+        PrimaryPart.AssemblyAngularVelocity = Velocity
+        PrimaryPart.AssemblyLinearVelocity = Velocity
+        
+        PrimaryPart:ApplyAngularImpulse(Velocity)
+        PrimaryPart:ApplyImpulse(Velocity)
+        
+        Character:SetPrimaryPartCFrame(PlayerPrimaryPart.CFrame * CFramenew(Random(- PlayerPrimaryPart.Size.X, PlayerPrimaryPart.Size.X), Random(- PlayerPrimaryPart.Size.Y, PlayerPrimaryPart.Size.Y), 0) * CFrameAngles(Random(- 360, 360), 0, 0))
+        PostSimulation:Wait()
+    end
+    
+    PrimaryPart.AssemblyAngularVelocity = Vector3zero
+    PrimaryPart.AssemblyLinearVelocity = Vector3zero
+    
+    Character:SetPrimaryPartCFrame(PrimaryPartCFrame)
+end)
+
+AndromedaCommands({"attach"}, function(Arguments)
+    local PrimaryPartCFrame = PrimaryPart.CFrame
+    local Backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+    
+    if not Backpack then
+        return
+    end
+
+    local HumanoidClone = Humanoid:Clone()
+    
+    Humanoid:Destroy()
+    HumanoidClone.Parent = Character
+    
+    for _,BackpackItem in pairs(Backpack:GetChildren()) do
+        if BackpackItem:IsA("BackpackItem") then
+            BackpackItem.Parent = Character
+        end
+    end
+    
+    local Player = Arguments[1] and AndromedaUsername(Arguments[1])
+    
+    if not Player then
+        return
+    end
+    
+    local PlayerCharacter = Player.Character or Player.CharacterAdded:Wait()
+    local PlayerPrimaryPart = PlayerCharacter:FindFirstChild("Right Arm") or PlayerCharacter:FindFirstChild("RightHand") --PlayerCharacter.PrimaryPart
+    
+    if not PlayerPrimaryPart then
+        return
+    end
+    
+    for _,Tool in pairs(Character:GetDescendants()) do
+        if Tool:IsA("Tool") then
+            local Handle = Tool:FindFirstChild("Handle")
+            
+            if not Handle or not Handle:IsA("BasePart") then
+                return
+            end
+            
+            firetouchinterest(PlayerPrimaryPart, Handle, 0)
+            Character.ChildRemoved:Wait()
+        end
+    end
+end)
+
+AndromedaCommands({"kill"}, function(Arguments)
+    Commands.attach(Arguments)
+    
+    LocalPlayer.Character = nil
+    Character:BreakJoints()
+end)
+
+AndromedaCommands({"bring", "punish"}, function(Arguments)
+    Commands.attach(Arguments)
+    Character:Destroy()
+end)
+
+AndromedaCommands({"banish"}, function(Arguments)
+    Commands.attach(Arguments)
+    Character:SetPrimaryPartCFrame(CFramenew(9e9, 9e9, 9e9))
+end)
+
+AndromedaCommands({"void"}, function(Arguments)
+    Commands.attach()
+end)
+
+AndromedaCommands({"tornado"}, function(Arguments)
+    Commands.attach(Arguments)
+    
+    while Character do
+        Character:SetPrimaryPartCFrame(PrimaryPart.CFrame * CFrameAngles(0, Random(- 360, 360), 0))
+        PostSimulation:Wait()
+    end
+end)
+
+local function AndromedaExecute(Change)
+    if Sub(Change, 1, 1) ~= Andromeda.Prefix then
+        return
+    end
+    
+    local Change = Change:lower()
+    Change = GSub(Change, ToString(Andromeda.Prefix), "")
+    
+    local Arguments = Split(Change, " ")
+    local Action = Arguments[1]
+    
+    if not Action then
+        return
+    end
+    
+    local CommandFunction = Commands[Action]
+    
+    if not CommandFunction then
+        return
+    end
+    
+    Remove(Arguments, 1)
+    
+    CommandFunction(Arguments)
+end
+
+local OnMessageDoneFiltering = DefaultChatSystemChatEvents:FindFirstChild("OnMessageDoneFiltering")
+
+if not OnMessageDoneFiltering or not OnMessageDoneFiltering:IsA("RemoteEvent") then
+    return
+end
+
+if Andromeda.OnMessageDoneFiltering then
+	Andromeda.OnMessageDoneFiltering:Disconnect()
+end
+
+Andromeda.OnMessageDoneFiltering = LocalPlayer.Chatted:Connect(AndromedaExecute) -- OnMessageDoneFiltering.OnClientEvent:Connect(AndromedaExecute)
